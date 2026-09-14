@@ -45,9 +45,15 @@ function stamp() {
   const n = words(doc.text);
   el.stampName.textContent = titleOf(doc);
   el.stampCount.textContent = n ? countLabel(n) : '';
-  const label = { off: '', local: 'solo aquí', saving: 'guardando', synced: 'en la nube' }[cloudState] || '';
+  // Sincronizado no se escribe: basta el punto. El estado sigue disponible
+  // como nombre accesible, para el cursor y para un lector de pantalla.
+  const label = { off: '', local: 'solo aquí', saving: 'guardando', synced: '' }[cloudState] || '';
+  const synced = cloudState === 'synced';
   el.stampSync.textContent = label;
-  el.stampSync.className = cloudState === 'synced' ? 'live' : '';
+  el.stampSync.className = synced ? 'live' : '';
+  el.stampSync.title = synced ? 'En la nube' : '';
+  if (synced) el.stampSync.setAttribute('aria-label', 'En la nube');
+  else el.stampSync.removeAttribute('aria-label');
 }
 
 function paint() {
