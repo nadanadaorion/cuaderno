@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cuaderno</title>
+<meta name="description" content="Un cuaderno para escribir sin distracciones.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#D5D033">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='%23D5D033'/><g fill='none' stroke='%230000EE' stroke-width='3'><circle cx='20' cy='20' r='11'/><path d='M20 1v8M20 31v8M1 20h8M31 20h8'/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&family=Newsreader:ital,opsz,wght@0,6..72,300;1,6..72,300&family=Work+Sans:wght@300;400&display=swap">
+<link rel="stylesheet" href="./styles.css">
+<script src="./config.js"></script>
+</head>
+<body>
+
+<canvas id="paper" aria-hidden="true"></canvas>
+
+<div class="sheet">
+  <div class="bar" id="bar">
+    <span class="stamp" id="stamp"><b id="stampName"></b><i id="stampCount"></i><i id="stampSync"></i></span>
+    <button class="glyph" id="bDocs" title="Documentos" aria-label="Documentos" aria-expanded="false">☰</button>
+    <button class="glyph" id="bFont" title="Tipografía" aria-label="Tipografía" aria-expanded="false">¶</button>
+    <button class="glyph" id="bSize" title="Tamaño" aria-label="Cambiar tamaño">·</button>
+    <button class="glyph" id="bLead" title="Interlineado" aria-label="Cambiar interlineado">:</button>
+    <button class="glyph" id="bTheme" title="Claro / oscuro" aria-label="Alternar claro y oscuro">◐</button>
+    <button class="glyph" id="bOut" title="Exportar" aria-label="Exportar" aria-expanded="false">↓</button>
+  </div>
+
+  <div class="stage">
+    <div class="mirror" id="mirror" aria-hidden="true"><span id="head"></span><span id="marker">&#8203;</span><span id="tail"></span></div>
+    <div class="caret" id="caret"></div>
+    <textarea class="area" id="area" spellcheck="false" aria-label="Texto del documento"></textarea>
+  </div>
+</div>
+
+<div class="menu" id="menu" role="menu" aria-labelledby="bOut">
+  <h2>Este documento</h2>
+  <button type="button" role="menuitem" data-out="txt">Descargar texto<em>.txt</em></button>
+  <button type="button" role="menuitem" data-out="md">Descargar Markdown<em>.md</em></button>
+  <button type="button" role="menuitem" data-out="copy">Copiar al portapapeles<em>texto</em></button>
+</div>
+
+<div class="menu" id="faces" role="menu" aria-labelledby="bFont">
+  <h2>Tipografía</h2>
+  <div id="faceList"></div>
+  <button type="button" id="bAddFont">Subir una fuente<em>woff2 ttf otf</em></button>
+  <p id="faceNote">La estrella marca con cuál abre el cuaderno.</p>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="drawer" aria-label="Documentos" aria-hidden="true">
+  <div class="drawer-head">
+    <h2>Documentos</h2>
+    <button class="pill" type="button" id="bNew">Nuevo</button>
+    <button class="glyph" type="button" id="bClose" title="Cerrar" aria-label="Cerrar documentos">×</button>
+  </div>
+  <div class="docs" id="docs"></div>
+  <div class="drawer-foot">
+    <button class="line" type="button" id="bAccount"><span id="accountLabel">Entrar</span><span id="accountHint">sincroniza tus dispositivos</span></button>
+    <button class="line" type="button" id="bTexture"><span>Textura de papel</span><span id="textureState">activa</span></button>
+    <button class="line" type="button" id="bBackup"><span>Exportar todo</span><span>.json</span></button>
+    <button class="line" type="button" id="bImport"><span>Importar</span><span>.json .txt .md</span></button>
+    <div class="keys" id="keys"></div>
+  </div>
+</aside>
+
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle" hidden>
+  <form class="gate-card" id="gateForm">
+    <h2 id="gateTitle">Tu cuenta</h2>
+    <p id="gateCopy">Te mandamos un enlace por correo. No hay contraseña que recordar.</p>
+    <label class="gate-label" for="gateEmail">Correo</label>
+    <input class="gate-input" id="gateEmail" type="email" autocomplete="email" required placeholder="tu@correo.com">
+    <div class="gate-row">
+      <button class="pill" type="submit" id="gateGo">Enviar enlace</button>
+      <button class="line gate-skip" type="button" id="gateSkip"><span>Seguir sin cuenta</span></button>
+    </div>
+    <p class="gate-note" id="gateNote"></p>
+  </form>
+</div>
+
+<input type="file" id="file" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden>
+<input type="file" id="fontFile" accept=".woff2,.woff,.ttf,.otf" hidden>
+<style id="faceStyles"></style>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

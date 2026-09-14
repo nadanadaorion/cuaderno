@@ -1,0 +1,5 @@
+# Credenciales de tu instalación: se generan al desplegar.
+/config.js
+
+.DS_Store
+node_modules/
