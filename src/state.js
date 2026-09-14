@@ -12,6 +12,9 @@ export const BUILTIN = [
 
 export const SIZES = ['clamp(22px, 3vw, 40px)', 'clamp(30px, 4.4vw, 62px)', 'clamp(40px, 6.4vw, 92px)'];
 export const LEADING = ['1.06', '1.24', '1.62'];
+// Interletrado en em: continuo, no por pasos. El mínimo aprieta sin llegar a
+// pegar los glifos; el máximo separa sin romper la palabra como unidad.
+export const TRACKING = { min: -0.05, max: 0.3, step: 0.002 };
 export const THEMES = [
   { paper: '#D5D033', ink: '#000000', caret: '#0000EE' },
   { paper: '#000000', ink: '#D5D033', caret: '#0000EE' }
@@ -47,6 +50,7 @@ function defaults() {
     defaultFont: 'b0',
     size: 1,
     lead: 1,
+    tracking: -0.012,
     theme: 0,
     texture: true,
     fonts: [],
@@ -75,6 +79,7 @@ export function load() {
       s.activeId = old.activeId;
       if (typeof old.size === 'number') s.size = old.size;
       if (typeof old.lead === 'number') s.lead = old.lead;
+      if (typeof old.tracking === 'number') s.tracking = old.tracking;
       if (typeof old.theme === 'number') s.theme = old.theme;
       if (typeof old.defaultFont === 'string') s.defaultFont = old.defaultFont;
       else if (typeof old.font === 'number') s.defaultFont = 'b' + old.font;
@@ -173,4 +178,46 @@ export function hasFace(key) {
 
 export function faceFor(key) {
   return faces().find((f) => f.key === key) || faces()[0];
+}
+
+// ---------------------------------------------------------------------------
+// Búsqueda
+// ---------------------------------------------------------------------------
+
+// Se compara sobre texto sin acentos y en minúsculas, para que "camion"
+// encuentre "camión". El índice se calcula sobre la cadena normalizada, que
+// conserva la misma longitud que el original porque sólo se quitan las marcas
+// diacríticas tras descomponer — de ahí que las posiciones sigan sirviendo
+// para seleccionar en el texto real.
+export function fold(text) {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/** Posiciones de cada coincidencia de `query` en `text`. */
+export function matches(text, query) {
+  const q = fold(query);
+  if (!q) return [];
+  const hay = fold(text);
+  const out = [];
+  let i = hay.indexOf(q);
+  while (i !== -1 && out.length < 500) {
+    out.push(i);
+    i = hay.indexOf(q, i + q.length);
+  }
+  return out;
+}
+
+/** Fragmento alrededor de la primera coincidencia, para la lista de resultados. */
+export function snippet(text, query, at) {
+  const q = fold(query);
+  const from = Math.max(0, at - 28);
+  const to = Math.min(text.length, at + q.length + 44);
+  return {
+    before: (from > 0 ? '…' : '') + text.slice(from, at).replace(/\s+/g, ' '),
+    hit: text.slice(at, at + q.length),
+    after: text.slice(at + q.length, to).replace(/\s+/g, ' ') + (to < text.length ? '…' : '')
+  };
 }

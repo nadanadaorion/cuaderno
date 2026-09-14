@@ -23,6 +23,7 @@ export function applyVars() {
   r.setProperty('--ff', faceFor(state.font).ff);
   r.setProperty('--fs', SIZES[state.size]);
   r.setProperty('--lh', LEADING[state.lead]);
+  r.setProperty('--ls', (state.tracking ?? -0.012) + 'em');
   r.setProperty('--paper', t.paper);
   r.setProperty('--ink', t.ink);
   r.setProperty('--caret', t.caret);

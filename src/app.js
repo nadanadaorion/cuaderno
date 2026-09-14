@@ -4,8 +4,12 @@ import {
   state, active, saveLocal, saveSoon, freshDoc, now,
   titleOf, words, countLabel, ago, slug,
   faces, hasFace, faceFor,
-  SIZES, LEADING, THEMES, FONT_FORMAT, FONT_MIME
+  SIZES, LEADING, THEMES, TRACKING, FONT_FORMAT, FONT_MIME,
+  matches, snippet
 } from './state.js';
+
+import { indent, outdent, toggleMark } from './textops.js';
+import { render } from './markdown.js';
 
 import { initPaper, drawPaper } from './paper.js';
 import {
@@ -19,7 +23,8 @@ for (const id of [
   'paper', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'mirror', 'head', 'marker',
   'tail', 'caret', 'area', 'menu', 'faces', 'faceList', 'faceNote', 'faceStyles', 'scrim',
   'drawer', 'docs', 'toast', 'toastText', 'file', 'fontFile', 'keys', 'textureState',
-  'accountLabel', 'accountHint', 'gate', 'gateForm', 'gateEmail', 'gateNote', 'gateCopy'
+  'accountLabel', 'accountHint', 'gate', 'gateForm', 'gateEmail', 'gateNote', 'gateCopy',
+  'read', 'tracking', 'trackingValue', 'find', 'findCount'
 ]) el[id] = $(id);
 
 let typing = false;
@@ -28,6 +33,8 @@ let pendingUndo = null;
 let toastTimer = null;
 let pushTimer = null;
 let reconciled = false;
+let reading = false;
+let query = '';
 
 // ---------------------------------------------------------------------------
 // Pintado
@@ -49,12 +56,13 @@ function paint() {
   sync();
   stamp();
   drawPaper();
+  if (reading) renderRead();
 }
 
 function setTyping(on) {
   if (typing === on) return;
   typing = on;
-  el.bar.classList.toggle('away', on && !drawerOpen && !menuOpen && !facesOpen);
+  el.bar.classList.toggle('away', on && !drawerOpen && !menuOpen && !facesOpen && !reading);
 }
 
 function setCloud(mode) {
@@ -246,54 +254,90 @@ function removeDoc(id) {
   }, 7000);
 }
 
-function renderDocs() {
-  el.docs.textContent = '';
-  const ordered = [...state.docs].sort((a, b) => (b.updated || 0) - (a.updated || 0));
+function docRow(doc, hit) {
+  const row = document.createElement('div');
+  row.className = 'doc' + (doc.id === state.activeId ? ' here' : '') + (hit ? ' found' : '');
 
-  for (const doc of ordered) {
-    const row = document.createElement('div');
-    row.className = 'doc' + (doc.id === state.activeId ? ' here' : '');
-
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'doc-name' + (titleOf(doc) ? '' : ' blank');
-    open.style.cssText = 'border:0;background:transparent;cursor:pointer;text-align:left;padding:0;color:inherit';
-    open.textContent = titleOf(doc) || 'Sin título';
-    open.addEventListener('click', () => {
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'doc-name' + (titleOf(doc) ? '' : ' blank');
+  open.style.cssText = 'border:0;background:transparent;cursor:pointer;text-align:left;padding:0;color:inherit';
+  open.textContent = titleOf(doc) || 'Sin título';
+  open.addEventListener('click', () => {
+    if (hit) openMatch(doc, hit.at, query.length);
+    else {
       openDoc(doc.id);
       closeDrawer();
       el.area.focus();
-    });
+    }
+  });
 
-    const meta = document.createElement('div');
-    meta.className = 'doc-meta';
-    meta.textContent = `${countLabel(words(doc.text))} · ${ago(doc.updated)}`;
+  const meta = document.createElement('div');
+  meta.className = 'doc-meta';
+  meta.textContent = hit && hit.count
+    ? `${hit.count} ${hit.count === 1 ? 'coincidencia' : 'coincidencias'} · ${ago(doc.updated)}`
+    : `${countLabel(words(doc.text))} · ${ago(doc.updated)}`;
 
-    const ren = document.createElement('button');
-    ren.type = 'button';
-    ren.className = 'act';
-    ren.title = 'Renombrar';
-    ren.setAttribute('aria-label', 'Renombrar documento');
-    ren.textContent = '✎';
-    ren.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startRename(row, open, doc);
-    });
+  const ren = document.createElement('button');
+  ren.type = 'button';
+  ren.className = 'act';
+  ren.title = 'Renombrar';
+  ren.setAttribute('aria-label', 'Renombrar documento');
+  ren.textContent = '✎';
+  ren.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRename(row, open, doc);
+  });
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'act';
-    del.title = 'Eliminar';
-    del.setAttribute('aria-label', 'Eliminar documento');
-    del.textContent = '×';
-    del.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeDoc(doc.id);
-    });
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'act';
+  del.title = 'Eliminar';
+  del.setAttribute('aria-label', 'Eliminar documento');
+  del.textContent = '×';
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeDoc(doc.id);
+  });
 
-    row.append(open, meta, ren, del);
-    el.docs.append(row);
+  row.append(open, meta, ren, del);
+
+  if (hit && hit.at !== null) {
+    const cut = snippet(doc.text, query, hit.at);
+    const line = document.createElement('div');
+    line.className = 'hit';
+    const mark = document.createElement('mark');
+    mark.textContent = cut.hit;
+    line.append(document.createTextNode(cut.before), mark, document.createTextNode(cut.after));
+    line.addEventListener('click', () => openMatch(doc, hit.at, query.length));
+    row.append(line);
   }
+
+  return row;
+}
+
+function renderDocs() {
+  el.docs.textContent = '';
+
+  if (query) {
+    const found = results();
+    el.findCount.textContent = found.length
+      ? `${found.length} de ${state.docs.length}`
+      : 'sin resultados';
+    if (!found.length) {
+      const blank = document.createElement('div');
+      blank.className = 'blank-find';
+      blank.textContent = `Nada con “${query}”`;
+      el.docs.append(blank);
+      return;
+    }
+    for (const hit of found) el.docs.append(docRow(hit.doc, hit));
+    return;
+  }
+
+  el.findCount.textContent = '';
+  const ordered = [...state.docs].sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  for (const doc of ordered) el.docs.append(docRow(doc, null));
 }
 
 function startRename(row, nameEl, doc) {
@@ -403,6 +447,90 @@ function mergeAll(remote) {
 }
 
 // ---------------------------------------------------------------------------
+// Vista previa
+// ---------------------------------------------------------------------------
+
+function renderRead() {
+  const doc = active();
+  const html = render(doc.text);
+  el.read.innerHTML = html || '<p class="empty">Este documento está vacío</p>';
+}
+
+function setReading(on) {
+  reading = on;
+  el.read.hidden = !on;
+  el.area.hidden = on;
+  el.caret.hidden = on;
+  $('bRead').setAttribute('aria-pressed', on ? 'true' : 'false');
+  el.bar.classList.remove('away');
+
+  if (on) {
+    renderRead();
+    el.read.focus();
+  } else {
+    grow();
+    sync();
+    el.area.focus();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Interletrado
+// ---------------------------------------------------------------------------
+
+function showTracking() {
+  const v = state.tracking ?? -0.012;
+  el.tracking.value = String(v);
+  el.trackingValue.textContent = `${v > 0 ? '+' : ''}${v.toFixed(3)} em`;
+}
+
+function setTracking(value, persist) {
+  const v = Math.min(TRACKING.max, Math.max(TRACKING.min, value));
+  state.tracking = Math.round(v * 1000) / 1000;
+  showTracking();
+  applyVars();
+  // El interletrado cambia el ancho de cada línea: el alto del textarea y la
+  // posición del caret dependen de eso, así que hay que recalcularlos.
+  grow();
+  sync();
+  if (reading) renderRead();
+  if (persist) touchSettings();
+  else saveLocal();
+}
+
+// ---------------------------------------------------------------------------
+// Búsqueda
+// ---------------------------------------------------------------------------
+
+function results() {
+  const out = [];
+  for (const doc of state.docs) {
+    const inBody = matches(doc.text, query);
+    const inName = matches(titleOf(doc), query);
+    if (!inBody.length && !inName.length) continue;
+    out.push({ doc, count: inBody.length, at: inBody.length ? inBody[0] : null });
+  }
+  return out.sort((a, b) => (b.doc.updated || 0) - (a.doc.updated || 0));
+}
+
+function runFind(next) {
+  query = next.trim();
+  renderDocs();
+}
+
+/** Abre el documento y deja seleccionada la coincidencia. */
+function openMatch(doc, at, length) {
+  openDoc(doc.id);
+  closeDrawer();
+  if (reading) setReading(false);
+  el.area.focus();
+  if (at === null) return;
+  el.area.setSelectionRange(at, at + length);
+  sync();
+  el.caret.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+// ---------------------------------------------------------------------------
 // Superficies
 // ---------------------------------------------------------------------------
 
@@ -420,7 +548,7 @@ function openDrawer() {
   el.bar.classList.remove('away');
   closeMenu();
   closeFaces();
-  $('bNew').focus();
+  if (!query) $('bNew').focus();
 }
 
 function closeDrawer() {
@@ -675,7 +803,35 @@ function wire() {
   $('bAccount').addEventListener('click', accountAction);
   $('bImport').addEventListener('click', () => el.file.click());
   $('bAddFont').addEventListener('click', () => el.fontFile.click());
+  $('bRead').addEventListener('click', () => setReading(!reading));
+  $('bTrackingReset').addEventListener('click', () => setTracking(-0.012, true));
   $('gateSkip').addEventListener('click', closeGate);
+
+  // `input` mientras se arrastra: se repinta en vivo pero sólo se sube al
+  // soltar, para no escribir en Supabase en cada paso del deslizador.
+  el.tracking.addEventListener('input', () => setTracking(parseFloat(el.tracking.value), false));
+  el.tracking.addEventListener('change', () => setTracking(parseFloat(el.tracking.value), true));
+
+  el.find.addEventListener('input', () => runFind(el.find.value));
+  el.find.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      if (el.find.value) {
+        el.find.value = '';
+        runFind('');
+      } else {
+        closeDrawer();
+        el.area.focus();
+      }
+      return;
+    }
+    // Enter salta al primer resultado sin obligar a usar el ratón.
+    if (e.key === 'Enter' && query) {
+      e.preventDefault();
+      const first = results()[0];
+      if (first) openMatch(first.doc, first.at, query.length);
+    }
+  });
   el.gateForm.addEventListener('submit', submitGate);
 
   el.file.addEventListener('change', () => {
@@ -713,7 +869,26 @@ function wire() {
     saveSoon();
     pushSoon(doc);
   });
-  el.area.addEventListener('keydown', () => setTyping(true));
+  el.area.addEventListener('keydown', (e) => {
+    setTyping(true);
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) outdent(el.area);
+      else indent(el.area);
+      return;
+    }
+
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'b') {
+      e.preventDefault();
+      toggleMark(el.area, '**');
+    } else if (k === 'i') {
+      e.preventDefault();
+      toggleMark(el.area, '*');
+    }
+  });
   for (const ev of ['keyup', 'click', 'select', 'focus']) {
     el.area.addEventListener(ev, () => requestAnimationFrame(sync));
   }
@@ -732,8 +907,17 @@ function wire() {
 
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   const mod = mac ? '⌘' : 'Ctrl+';
-  el.keys.textContent =
-    `${mod}O documentos · ${mod}${mac ? '⇧N' : 'Shift+N'} nuevo · ${mod}S exportar · Esc cerrar`;
+  el.keys.textContent = [
+    `${mod}O documentos`,
+    `${mod}F buscar`,
+    `${mod}${mac ? '⇧N' : 'Shift+N'} nuevo`,
+    `${mod}B negrita`,
+    `${mod}I cursiva`,
+    `${mod}E vista previa`,
+    `${mod}S exportar`,
+    'Tab sangría',
+    'Esc cerrar'
+  ].join(' · ');
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -741,6 +925,8 @@ function wire() {
       if (menuOpen || facesOpen || drawerOpen) {
         closeAll();
         el.area.focus();
+      } else if (reading) {
+        setReading(false);
       }
       return;
     }
@@ -756,6 +942,14 @@ function wire() {
       e.preventDefault();
       saveLocal();
       openMenu();
+    } else if (k === 'f') {
+      e.preventDefault();
+      if (!drawerOpen) openDrawer();
+      el.find.focus();
+      el.find.select();
+    } else if (k === 'e') {
+      e.preventDefault();
+      setReading(!reading);
     }
   });
 
@@ -777,6 +971,7 @@ function boot() {
   el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
 
   injectFaces();
+  showTracking();
   el.area.value = active().text;
   applyVars();
   refreshCursor();
@@ -818,8 +1013,10 @@ function boot() {
         if (typeof remote.lead === 'number') state.lead = remote.lead;
         if (typeof remote.theme === 'number') state.theme = remote.theme;
         if (typeof remote.texture === 'boolean') state.texture = remote.texture;
+        if (typeof remote.tracking === 'number') state.tracking = remote.tracking;
         if (typeof remote.defaultFont === 'string') state.defaultFont = remote.defaultFont;
         el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
+        showTracking();
         saveLocal();
         paint();
       },

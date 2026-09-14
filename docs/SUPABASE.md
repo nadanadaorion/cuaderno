@@ -14,6 +14,10 @@ Guía paso a paso. No hace falta saber SQL: sólo copiar, pegar y correr.
 2. Pega completo el contenido de
    [`supabase/migrations/0001_cuaderno.sql`](../supabase/migrations/0001_cuaderno.sql).
 3. **Run.**
+4. Repite con las migraciones siguientes, en orden numérico. Hoy sólo queda
+   [`0002_interletrado.sql`](../supabase/migrations/0002_interletrado.sql), que
+   agrega la columna del interletrado. Si ya tenías la base creada antes de esa
+   migración, córrela ahora: sin ella, los ajustes no se sincronizan.
 
 Ese script crea tres tablas (`documents`, `settings`, `fonts`), enciende RLS
 con una política por dueño en cada una, agrega `documents` a Realtime y crea el

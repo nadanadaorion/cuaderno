@@ -179,6 +179,7 @@ async function pullSettings() {
     defaultFont: data.default_font,
     size: data.size,
     lead: data.lead,
+    tracking: data.tracking,
     theme: data.theme,
     texture: data.texture,
     updated: toMs(data.updated_at)
@@ -194,6 +195,7 @@ export async function pushSettings() {
       default_font: state.defaultFont,
       size: state.size,
       lead: state.lead,
+      tracking: state.tracking ?? -0.012,
       theme: state.theme,
       texture: state.texture !== false,
       updated_at: toIso(Date.now())
