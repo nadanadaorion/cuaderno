@@ -1,6 +1,11 @@
 name: Deploy GitHub Pages
 
 on:
+  # Cada cambio en main se publica solo. El disparo manual queda disponible
+  # para republicar sin tocar el código, por ejemplo tras cambiar las
+  # Variables del repositorio (config.js se arma en cada corrida).
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
