@@ -14,7 +14,7 @@ No hay compilación: son archivos estáticos y módulos ES. Se abren tal cual.
   distinguir acentos — "camion" encuentra "camión" — y salta a la coincidencia.
 - **Formato en vivo.** `⌘B` y `⌘I` ponen y quitan el énfasis, y **se ve
   mientras escribes**: negrita gruesa, cursiva inclinada, títulos destacados,
-  con las marcas atenuadas. Se puede apagar con `⌘D`. `⌘E` abre además una
+  sin ver las marcas. Se puede apagar con `⌘D`. `⌘E` abre además una
   vista limpia, ya sin marcas.
 - **Sangría.** `Tab` sangra y `Shift+Tab` quita sangría; con varias líneas
   seleccionadas, a todas a la vez.
@@ -24,9 +24,12 @@ No hay compilación: son archivos estáticos y módulos ES. Se abren tal cual.
   Supabase y llegan solos a los otros dispositivos abiertos (Realtime).
 - **Tipografías propias.** Tres de casa y las que subas (`woff2`, `woff`,
   `ttf`, `otf`). La estrella marca con cuál abre el cuaderno.
-- **Textura de papel.** Un shader dibuja grano, fibra, manchas y motas. Es
-  estática — se genera una vez por tema y tamaño de ventana — y se puede
-  apagar.
+- **Fondos animados.** Cuatro shaders con aire Y2K — *Cromo*, *Holograma*,
+  *Burbujas*, *Plasma* — con intensidad regulable y la opción de ninguno, que
+  es la de fábrica. Cada uno pone el matiz, pero la luminancia se encauza a una
+  banda donde el texto sigue ganando. Corren a 30 cuadros, se pausan cuando la
+  pestaña pasa a segundo plano, y quedan quietos si el sistema pide movimiento
+  reducido.
 - **Exportar.** `.txt`, `.md`, copiar al portapapeles, y un respaldo `.json`
   de todo que se puede volver a importar.
 - **Local-first.** Todo se pinta desde `localStorage` al instante. Sin
@@ -119,9 +122,14 @@ Si no defines las variables, el sitio se publica igual pero sin nube.
 - La cursiva sí usa la letra cursiva real, que sí cambia de ancho. La deriva
   medida es de unos 3px: menos de un carácter, visible sólo si se hace clic al
   final de una línea larga con cursivas.
-- Las marcas siguen ocupando su lugar, sólo atenuadas. Si se ocultaran, el texto
-  daría un salto al escribirlas y las posiciones dejarían de cuadrar con el
-  textarea.
+- Las marcas son invisibles pero **siguen ocupando su ancho**, así que queda un
+  hueco donde estaban. No se pueden quitar de la maqueta: el textarea que está
+  debajo sí las contiene y sigue midiendo con ellas, y es quien traduce un clic
+  en una posición del texto. Eliminar el hueco exigiría dejar de guardar las
+  marcas en el texto y llevar el énfasis aparte, como rangos de posiciones — lo
+  que obliga a mantener esos rangos a mano en cada edición y a escribir un
+  historial de deshacer propio, porque el del navegador restauraría el texto
+  pero no los rangos.
 - La página necesita red para **cargar** la primera vez (y para cargar la
   biblioteca de Supabase). Una vez cargada, escribir funciona sin conexión,
   pero no hay Service Worker todavía, así que abrirla sin red no funciona.
@@ -138,9 +146,9 @@ styles.css          toda la hoja de estilo
 config.example.js   plantilla de credenciales
 src/
   state.js          estado, localStorage, migraciones, derivados de texto
-  paper.js          el shader de papel
   editor.js         lienzo, caret propio y la mira del cursor
   gloss.js          la capa de formato en vivo y la medición del caret
+  backdrop.js       los fondos animados
   textops.js        sangría y marcas de énfasis, conservando el deshacer
   markdown.js       renderizador mínimo para la vista previa
   cloud.js          Supabase: cuenta, documentos, ajustes, tipografías
@@ -149,4 +157,5 @@ supabase/migrations/
   0001_cuaderno.sql     esquema, RLS, Realtime y Storage
   0002_interletrado.sql   el ajuste de interletrado
   0003_formato_en_vivo.sql el interruptor del formato en vivo
+  0004_fondo.sql           el fondo animado y su intensidad
 ```

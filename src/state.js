@@ -52,7 +52,8 @@ function defaults() {
     lead: 1,
     tracking: -0.012,
     theme: 0,
-    texture: true,
+    backdrop: 'ninguno',
+    backdropAmount: 0.5,
     gloss: true,
     fonts: [],
     settingsUpdated: 0,
@@ -82,6 +83,7 @@ export function load() {
       if (typeof old.lead === 'number') s.lead = old.lead;
       if (typeof old.tracking === 'number') s.tracking = old.tracking;
       if (typeof old.gloss === 'boolean') s.gloss = old.gloss;
+      if (typeof old.backdrop === 'string') s.backdrop = old.backdrop;
       if (typeof old.theme === 'number') s.theme = old.theme;
       if (typeof old.defaultFont === 'string') s.defaultFont = old.defaultFont;
       else if (typeof old.font === 'number') s.defaultFont = 'b' + old.font;

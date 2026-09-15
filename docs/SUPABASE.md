@@ -14,12 +14,10 @@ Guía paso a paso. No hace falta saber SQL: sólo copiar, pegar y correr.
 2. Pega completo el contenido de
    [`supabase/migrations/0001_cuaderno.sql`](../supabase/migrations/0001_cuaderno.sql).
 3. **Run.**
-4. Repite con las migraciones siguientes, en orden numérico:
-   [`0002_interletrado.sql`](../supabase/migrations/0002_interletrado.sql) y
-   [`0003_formato_en_vivo.sql`](../supabase/migrations/0003_formato_en_vivo.sql).
-   Si ya tenías la base creada antes de ellas, córrelas ahora: sin esas
-   columnas, los ajustes no se sincronizan. Son idempotentes, así que correr
-   una que ya estaba aplicada no hace daño.
+4. Repite con las migraciones siguientes, en orden numérico: `0002`, `0003` y
+   `0004` de la misma carpeta. Si ya tenías la base creada antes de ellas,
+   córrelas ahora: sin esas columnas, los ajustes no se sincronizan. Son
+   idempotentes, así que correr una que ya estaba aplicada no hace daño.
 
 Ese script crea tres tablas (`documents`, `settings`, `fonts`), enciende RLS
 con una política por dueño en cada una, agrega `documents` a Realtime y crea el

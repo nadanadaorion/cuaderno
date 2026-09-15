@@ -181,7 +181,8 @@ async function pullSettings() {
     lead: data.lead,
     tracking: data.tracking,
     theme: data.theme,
-    texture: data.texture,
+    backdrop: data.backdrop,
+    backdropAmount: data.backdrop_amount,
     gloss: data.gloss,
     updated: toMs(data.updated_at)
   });
@@ -198,7 +199,8 @@ export async function pushSettings() {
       lead: state.lead,
       tracking: state.tracking ?? -0.012,
       theme: state.theme,
-      texture: state.texture !== false,
+      backdrop: state.backdrop || 'ninguno',
+      backdrop_amount: state.backdropAmount ?? 0.5,
       gloss: state.gloss !== false,
       updated_at: toIso(Date.now())
     },

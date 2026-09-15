@@ -11,7 +11,7 @@ import {
 import { indent, outdent, toggleMark } from './textops.js';
 import { render } from './markdown.js';
 
-import { initPaper, drawPaper } from './paper.js';
+import { initBackdrop, run as runBackdrop, BACKDROPS } from './backdrop.js';
 import {
   initEditor, applyVars, grow, sync, paintGloss, dropRects, setCursor, refreshCursor, trackCursor
 } from './editor.js';
@@ -20,11 +20,12 @@ import * as cloud from './cloud.js';
 const $ = (id) => document.getElementById(id);
 const el = {};
 for (const id of [
-  'paper', 'sheet', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'gloss',
+  'backdrop', 'sheet', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'gloss',
   'caret', 'area', 'menu', 'faces', 'faceList', 'faceNote', 'faceStyles', 'scrim',
-  'drawer', 'docs', 'toast', 'toastText', 'file', 'fontFile', 'keys', 'textureState',
+  'drawer', 'docs', 'toast', 'toastText', 'file', 'fontFile', 'keys',
   'accountLabel', 'accountHint', 'gate', 'gateForm', 'gateEmail', 'gateNote', 'gateCopy',
-  'read', 'tracking', 'trackingValue', 'find', 'findCount', 'glossState'
+  'read', 'tracking', 'trackingValue', 'find', 'findCount', 'glossState',
+  'backdropChips', 'backdropAmount'
 ]) el[id] = $(id);
 
 let typing = false;
@@ -56,7 +57,7 @@ function paint() {
   grow();
   sync();
   stamp();
-  drawPaper();
+  runBackdrop();
   if (reading) renderRead();
 }
 
@@ -798,11 +799,25 @@ function toggleGloss() {
   touchSettings();
 }
 
-function toggleTexture() {
-  state.texture = state.texture === false;
-  el.textureState.textContent = state.texture ? 'activa' : 'apagada';
-  touchSettings();
-  drawPaper();
+function renderBackdrops() {
+  el.backdropChips.textContent = '';
+  for (const b of BACKDROPS) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.setAttribute('role', 'radio');
+    chip.setAttribute('aria-checked', state.backdrop === b.key ? 'true' : 'false');
+    chip.textContent = b.label;
+    chip.addEventListener('click', () => {
+      state.backdrop = b.key;
+      renderBackdrops();
+      runBackdrop();
+      touchSettings();
+    });
+    el.backdropChips.append(chip);
+  }
+  el.backdropChips.parentElement.classList.toggle('off', state.backdrop === 'ninguno');
+  el.backdropAmount.value = String(state.backdropAmount ?? 0.5);
 }
 
 function wire() {
@@ -818,8 +833,15 @@ function wire() {
   });
   $('bNew').addEventListener('click', newDoc);
   $('bBackup').addEventListener('click', backup);
-  $('bTexture').addEventListener('click', toggleTexture);
   $('bGloss').addEventListener('click', toggleGloss);
+
+  // Se repinta en vivo mientras se arrastra, pero sólo se sube al soltar.
+  el.backdropAmount.addEventListener('input', () => {
+    state.backdropAmount = parseFloat(el.backdropAmount.value);
+    saveLocal();
+    runBackdrop();
+  });
+  el.backdropAmount.addEventListener('change', touchSettings);
   $('bAccount').addEventListener('click', accountAction);
   $('bImport').addEventListener('click', () => el.file.click());
   $('bAddFont').addEventListener('click', () => el.fontFile.click());
@@ -921,7 +943,7 @@ function wire() {
   window.addEventListener('resize', () => {
     grow();
     sync();
-    drawPaper();
+    runBackdrop();
   });
   window.addEventListener('beforeunload', saveLocal);
 
@@ -989,10 +1011,9 @@ function wire() {
 
 function boot() {
   initEditor(el);
-  initPaper(el.paper);
+  initBackdrop(el.backdrop);
 
   state.font = hasFace(state.defaultFont) ? state.defaultFont : hasFace(state.font) ? state.font : 'b0';
-  el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
   reflectGloss();
 
   injectFaces();
@@ -1003,8 +1024,9 @@ function boot() {
   grow();
   sync();
   stamp();
-  drawPaper();
+  runBackdrop();
   renderDocs();
+  renderBackdrops();
   renderFaces();
   reflectAccount();
   wire();
@@ -1037,11 +1059,12 @@ function boot() {
         if (typeof remote.size === 'number') state.size = remote.size;
         if (typeof remote.lead === 'number') state.lead = remote.lead;
         if (typeof remote.theme === 'number') state.theme = remote.theme;
-        if (typeof remote.texture === 'boolean') state.texture = remote.texture;
+        if (typeof remote.backdrop === 'string') state.backdrop = remote.backdrop;
+        if (typeof remote.backdropAmount === 'number') state.backdropAmount = remote.backdropAmount;
         if (typeof remote.tracking === 'number') state.tracking = remote.tracking;
         if (typeof remote.gloss === 'boolean') state.gloss = remote.gloss;
         if (typeof remote.defaultFont === 'string') state.defaultFont = remote.defaultFont;
-        el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
+        renderBackdrops();
         reflectGloss();
         showTracking();
         saveLocal();
