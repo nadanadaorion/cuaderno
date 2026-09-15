@@ -18,7 +18,7 @@
 
 <canvas id="paper" aria-hidden="true"></canvas>
 
-<div class="sheet">
+<div class="sheet" id="sheet">
   <div class="bar" id="bar">
     <span class="stamp" id="stamp"><b id="stampName"></b><i id="stampCount"></i><i id="stampSync"></i></span>
     <button class="glyph" id="bDocs" title="Documentos" aria-label="Documentos" aria-expanded="false">☰</button>
@@ -31,7 +31,7 @@
   </div>
 
   <div class="stage">
-    <div class="mirror" id="mirror" aria-hidden="true"><span id="head"></span><span id="marker">&#8203;</span><span id="tail"></span></div>
+    <div class="gloss" id="gloss" aria-hidden="true"></div>
     <div class="caret" id="caret"></div>
     <textarea class="area" id="area" spellcheck="false" aria-label="Texto del documento"></textarea>
     <article class="read" id="read" tabindex="-1" aria-label="Vista previa del documento" hidden></article>
@@ -74,6 +74,7 @@
   <div class="docs" id="docs"></div>
   <div class="drawer-foot">
     <button class="line" type="button" id="bAccount"><span id="accountLabel">Entrar</span><span id="accountHint">sincroniza tus dispositivos</span></button>
+    <button class="line" type="button" id="bGloss"><span>Formato en vivo</span><span id="glossState">activo</span></button>
     <button class="line" type="button" id="bTexture"><span>Textura de papel</span><span id="textureState">activa</span></button>
     <button class="line" type="button" id="bBackup"><span>Exportar todo</span><span>.json</span></button>
     <button class="line" type="button" id="bImport"><span>Importar</span><span>.json .txt .md</span></button>

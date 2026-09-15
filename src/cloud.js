@@ -182,6 +182,7 @@ async function pullSettings() {
     tracking: data.tracking,
     theme: data.theme,
     texture: data.texture,
+    gloss: data.gloss,
     updated: toMs(data.updated_at)
   });
   await pullFonts();
@@ -198,6 +199,7 @@ export async function pushSettings() {
       tracking: state.tracking ?? -0.012,
       theme: state.theme,
       texture: state.texture !== false,
+      gloss: state.gloss !== false,
       updated_at: toIso(Date.now())
     },
     { onConflict: 'owner' }

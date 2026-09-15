@@ -53,6 +53,7 @@ function defaults() {
     tracking: -0.012,
     theme: 0,
     texture: true,
+    gloss: true,
     fonts: [],
     settingsUpdated: 0,
     docs: [freshDoc()],
@@ -80,6 +81,7 @@ export function load() {
       if (typeof old.size === 'number') s.size = old.size;
       if (typeof old.lead === 'number') s.lead = old.lead;
       if (typeof old.tracking === 'number') s.tracking = old.tracking;
+      if (typeof old.gloss === 'boolean') s.gloss = old.gloss;
       if (typeof old.theme === 'number') s.theme = old.theme;
       if (typeof old.defaultFont === 'string') s.defaultFont = old.defaultFont;
       else if (typeof old.font === 'number') s.defaultFont = 'b' + old.font;
@@ -122,9 +124,12 @@ export function saveSoon() {
 // Derivados de texto
 // ---------------------------------------------------------------------------
 
+/** Quita las marcas de énfasis: en un título estorban más de lo que dicen. */
+const bare = (text) => text.replace(/\*{1,3}|`|~~/g, '');
+
 export function titleOf(doc) {
   if (doc.name) return doc.name;
-  const first = (doc.text.split('\n').find((l) => l.trim()) || '').trim().replace(/^#+\s*/, '');
+  const first = bare((doc.text.split('\n').find((l) => l.trim()) || '').trim().replace(/^#+\s*/, ''));
   return first.length > 48 ? first.slice(0, 48).trimEnd() + '…' : first;
 }
 

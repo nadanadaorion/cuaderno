@@ -13,18 +13,18 @@ import { render } from './markdown.js';
 
 import { initPaper, drawPaper } from './paper.js';
 import {
-  initEditor, applyVars, grow, sync, dropRects, setCursor, refreshCursor, trackCursor
+  initEditor, applyVars, grow, sync, paintGloss, dropRects, setCursor, refreshCursor, trackCursor
 } from './editor.js';
 import * as cloud from './cloud.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {};
 for (const id of [
-  'paper', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'mirror', 'head', 'marker',
-  'tail', 'caret', 'area', 'menu', 'faces', 'faceList', 'faceNote', 'faceStyles', 'scrim',
+  'paper', 'sheet', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'gloss',
+  'caret', 'area', 'menu', 'faces', 'faceList', 'faceNote', 'faceStyles', 'scrim',
   'drawer', 'docs', 'toast', 'toastText', 'file', 'fontFile', 'keys', 'textureState',
   'accountLabel', 'accountHint', 'gate', 'gateForm', 'gateEmail', 'gateNote', 'gateCopy',
-  'read', 'tracking', 'trackingValue', 'find', 'findCount'
+  'read', 'tracking', 'trackingValue', 'find', 'findCount', 'glossState'
 ]) el[id] = $(id);
 
 let typing = false;
@@ -45,15 +45,10 @@ function stamp() {
   const n = words(doc.text);
   el.stampName.textContent = titleOf(doc);
   el.stampCount.textContent = n ? countLabel(n) : '';
-  // Sincronizado no se escribe: basta el punto. El estado sigue disponible
-  // como nombre accesible, para el cursor y para un lector de pantalla.
-  const label = { off: '', local: 'solo aquí', saving: 'guardando', synced: '' }[cloudState] || '';
-  const synced = cloudState === 'synced';
-  el.stampSync.textContent = label;
-  el.stampSync.className = synced ? 'live' : '';
-  el.stampSync.title = synced ? 'En la nube' : '';
-  if (synced) el.stampSync.setAttribute('aria-label', 'En la nube');
-  else el.stampSync.removeAttribute('aria-label');
+  // Sincronizado no se anuncia de ninguna forma: es el estado normal. Sólo se
+  // escribe lo que conviene notar — que no hay nube, o que algo está subiendo.
+  el.stampSync.textContent = { local: 'solo aquí', saving: 'guardando' }[cloudState] || '';
+  el.stampSync.title = cloudState === 'synced' ? 'En la nube' : '';
 }
 
 function paint() {
@@ -466,6 +461,7 @@ function setReading(on) {
   reading = on;
   el.read.hidden = !on;
   el.area.hidden = on;
+  el.gloss.hidden = on;
   el.caret.hidden = on;
   $('bRead').setAttribute('aria-pressed', on ? 'true' : 'false');
   el.bar.classList.remove('away');
@@ -785,6 +781,23 @@ function cycle(key, len) {
   el.area.focus();
 }
 
+function reflectGloss() {
+  const on = state.gloss !== false;
+  el.sheet.classList.toggle('plain', !on);
+  el.glossState.textContent = on ? 'activo' : 'apagado';
+}
+
+function toggleGloss() {
+  state.gloss = state.gloss === false;
+  reflectGloss();
+  // La cursiva sí cambia el ancho de la línea, así que al encender o apagar
+  // hay que rehacer la medida del alto y la del caret.
+  paintGloss(true);
+  grow();
+  sync();
+  touchSettings();
+}
+
 function toggleTexture() {
   state.texture = state.texture === false;
   el.textureState.textContent = state.texture ? 'activa' : 'apagada';
@@ -806,6 +819,7 @@ function wire() {
   $('bNew').addEventListener('click', newDoc);
   $('bBackup').addEventListener('click', backup);
   $('bTexture').addEventListener('click', toggleTexture);
+  $('bGloss').addEventListener('click', toggleGloss);
   $('bAccount').addEventListener('click', accountAction);
   $('bImport').addEventListener('click', () => el.file.click());
   $('bAddFont').addEventListener('click', () => el.fontFile.click());
@@ -920,6 +934,7 @@ function wire() {
     `${mod}B negrita`,
     `${mod}I cursiva`,
     `${mod}E vista previa`,
+    `${mod}D formato en vivo`,
     `${mod}S exportar`,
     'Tab sangría',
     'Esc cerrar'
@@ -956,6 +971,9 @@ function wire() {
     } else if (k === 'e') {
       e.preventDefault();
       setReading(!reading);
+    } else if (k === 'd') {
+      e.preventDefault();
+      toggleGloss();
     }
   });
 
@@ -975,6 +993,7 @@ function boot() {
 
   state.font = hasFace(state.defaultFont) ? state.defaultFont : hasFace(state.font) ? state.font : 'b0';
   el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
+  reflectGloss();
 
   injectFaces();
   showTracking();
@@ -1020,8 +1039,10 @@ function boot() {
         if (typeof remote.theme === 'number') state.theme = remote.theme;
         if (typeof remote.texture === 'boolean') state.texture = remote.texture;
         if (typeof remote.tracking === 'number') state.tracking = remote.tracking;
+        if (typeof remote.gloss === 'boolean') state.gloss = remote.gloss;
         if (typeof remote.defaultFont === 'string') state.defaultFont = remote.defaultFont;
         el.textureState.textContent = state.texture !== false ? 'activa' : 'apagada';
+        reflectGloss();
         showTracking();
         saveLocal();
         paint();

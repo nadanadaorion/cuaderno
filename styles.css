@@ -60,7 +60,7 @@ button { font: inherit; color: inherit; }
 
 .stage { position: relative; flex: 1; display: flex; }
 
-.mirror, .area {
+.gloss, .area {
   padding: var(--pad-top) var(--pad-x) 20vh;
   font-family: var(--ff);
   font-weight: 300;
@@ -71,14 +71,44 @@ button { font: inherit; color: inherit; }
   box-sizing: border-box;
 }
 
-.mirror {
+/* La capa de formato es lo que se ve. Va ENCIMA del textarea y sin recibir
+   eventos: así el resaltado de selección, que el textarea pinta por debajo,
+   queda detrás del texto en vez de taparlo. */
+.gloss {
   position: absolute;
   inset: 0;
+  z-index: 2;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  visibility: hidden;
   pointer-events: none;
+  color: var(--ink);
 }
+
+/* Énfasis sin mover una sola letra: se engrosa el trazo del glifo, que no
+   altera su avance. Poner peso 600 ensancharía la palabra y el clic para
+   colocar el caret caería en la letra equivocada. */
+.gloss .b, .gloss .h { -webkit-text-stroke: 0.022em currentColor; }
+.gloss .bi { -webkit-text-stroke: 0.022em currentColor; font-style: italic; }
+.gloss .i { font-style: italic; }
+/* El código NO cambia de familia ni de cuerpo: ambas cosas mueven el avance
+   de cada letra igual que el peso. Se distingue con un fondo, que no ocupa. */
+.gloss .code {
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  border-radius: 2px;
+}
+/* Las marcas siguen ahí, ocupando su lugar, sólo apagadas: si desaparecieran,
+   el texto daría un salto al escribirlas y las posiciones dejarían de cuadrar
+   con el textarea. */
+.gloss .mark { opacity: 0.14; }
+.gloss .sentinel { opacity: 0; }
+
+.sheet.plain .gloss .b,
+.sheet.plain .gloss .h,
+.sheet.plain .gloss .bi { -webkit-text-stroke: 0; }
+.sheet.plain .gloss .bi,
+.sheet.plain .gloss .i { font-style: normal; }
+.sheet.plain .gloss .mark { opacity: 1; }
+.sheet.plain .gloss .code { background: transparent; }
 
 .area {
   position: relative;
@@ -90,7 +120,9 @@ button { font: inherit; color: inherit; }
   outline: 0;
   resize: none;
   overflow: hidden;
-  color: var(--ink);
+  /* El texto lo dibuja la capa de formato; aquí sólo se conservan la
+     selección y el mapeo del clic a posición. */
+  color: transparent;
   caret-color: transparent;
   text-wrap: pretty;
 }
@@ -98,6 +130,7 @@ button { font: inherit; color: inherit; }
 
 .caret {
   position: absolute;
+  z-index: 3;
   top: 0; left: 0;
   width: 8px; height: 1em;
   background: var(--caret);
@@ -141,14 +174,6 @@ button { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .stamp i { font-style: normal; white-space: nowrap; opacity: 0.7; }
-.stamp i.live::before {
-  content: "";
-  display: inline-block;
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  vertical-align: 1px;
-}
 
 .glyph {
   width: 34px; height: 34px;

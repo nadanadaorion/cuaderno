@@ -1,17 +1,22 @@
-// El lienzo: textarea transparente, caret propio y la mira del cursor.
+// El lienzo: textarea transparente, capa de formato, caret propio y la mira.
 //
-// El caret nativo se oculta y se dibuja uno propio. Para saber dónde va, un
-// div espejo invisible reproduce exactamente la tipografía y el ajuste de
-// línea del textarea, partido en cabeza / marca / cola: la posición de la
-// marca es la del caret. El mismo espejo sirve para medir los rectángulos
-// reales de cada glifo y decidir si la mira está sobre texto o sobre el vacío.
+// El textarea recibe todas las teclas y todos los clics, pero no dibuja nada:
+// su texto es transparente. Lo que se ve es la capa de formato (`gloss`), que
+// contiene los mismos caracteres con los tramos enfatizados marcados. Sobre esa
+// capa se mide la posición del caret y el rectángulo de cada glifo — el caret
+// nativo también está oculto y se dibuja uno propio.
+//
+// Con el formato apagado la capa sigue siendo la que se ve, sólo que sin
+// ningún énfasis: así el camino de medición es uno solo en ambos casos.
 
 import { state, THEMES, SIZES, LEADING, faceFor } from './state.js';
+import { renderGloss, caretRect, glyphRects } from './gloss.js';
 
 let el = {};
 let rects = null;
 let cursorMode = null;
 let moveRaf = null;
+let painted = null; // último texto volcado en la capa
 
 export function initEditor(nodes) {
   el = nodes;
@@ -35,44 +40,48 @@ export function grow() {
   el.area.style.height = Math.max(el.area.scrollHeight, window.innerHeight) + 'px';
 }
 
+/** Vuelve a volcar la capa. Sólo si el texto cambió: mover el caret no la toca. */
+export function paintGloss(force) {
+  const text = el.area.value;
+  if (!force && text === painted) return;
+  renderGloss(el.gloss, text);
+  painted = text;
+  rects = null;
+}
+
 export function sync() {
-  const pos = el.area.selectionEnd || 0;
-  el.head.textContent = el.area.value.slice(0, pos);
-  el.tail.textContent = el.area.value.slice(pos);
+  paintGloss();
   rects = null;
 
   const cs = getComputedStyle(el.area);
   const fs = parseFloat(cs.fontSize);
   const lh = parseFloat(cs.lineHeight) || fs * 1.24;
 
+  const box = caretRect(el.gloss, el.area.selectionEnd || 0);
   el.caret.style.width = Math.max(8, Math.round(fs * 0.15)) + 'px';
   el.caret.style.height = Math.round(lh * 0.92) + 'px';
-  el.caret.style.left = el.marker.offsetLeft + 'px';
-  el.caret.style.top = el.marker.offsetTop + Math.round(lh * 0.04) + 'px';
+
+  // Sin medida no se deja la posición anterior: quedaría un caret mintiendo
+  // sobre dónde se va a escribir. Se manda al origen del texto.
+  if (!box) {
+    el.caret.style.left = cs.paddingLeft;
+    el.caret.style.top = cs.paddingTop;
+    return;
+  }
+  // El rectángulo de un rango colapsado abarca la altura de la línea; el
+  // bloque del caret es algo más corto y se centra en ella.
+  el.caret.style.left = Math.round(box.left) + 'px';
+  el.caret.style.top = Math.round(box.top + (box.height - lh * 0.92) / 2) + 'px';
 }
 
 export function dropRects() {
   rects = null;
 }
 
-function glyphRects() {
-  if (rects) return rects;
-  const out = [];
-  for (const sp of [el.head, el.tail]) {
-    if (!sp.firstChild) continue;
-    const r = document.createRange();
-    r.selectNodeContents(sp);
-    for (const box of r.getClientRects()) {
-      if (box.width > 0.5 && box.height > 0.5) out.push(box);
-    }
-  }
-  rects = out;
-  return out;
-}
-
 function overText(x, y) {
+  if (!rects) rects = glyphRects(el.gloss);
   const p = 2;
-  return glyphRects().some((b) => x >= b.left - p && x <= b.right + p && y >= b.top - p && y <= b.bottom + p);
+  return rects.some((b) => x >= b.left - p && x <= b.right + p && y >= b.top - p && y <= b.bottom + p);
 }
 
 function reticle(open) {

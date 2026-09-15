@@ -12,9 +12,10 @@ No hay compilación: son archivos estáticos y módulos ES. Se abren tal cual.
   *Deshacer* durante siete segundos en vez de pedir confirmación.
 - **Buscar en todo.** `⌘F` busca en el texto de todos los documentos, sin
   distinguir acentos — "camion" encuentra "camión" — y salta a la coincidencia.
-- **Énfasis en Markdown.** `⌘B` y `⌘I` ponen y quitan las marcas alrededor de
-  la selección. `⌘E` alterna a una vista donde negrita y cursiva se ven de
-  verdad.
+- **Formato en vivo.** `⌘B` y `⌘I` ponen y quitan el énfasis, y **se ve
+  mientras escribes**: negrita gruesa, cursiva inclinada, títulos destacados,
+  con las marcas atenuadas. Se puede apagar con `⌘D`. `⌘E` abre además una
+  vista limpia, ya sin marcas.
 - **Sangría.** `Tab` sangra y `Shift+Tab` quita sangría; con varias líneas
   seleccionadas, a todas a la vez.
 - **Interletrado continuo**, en el menú de tipografía, junto al resto de los
@@ -41,7 +42,8 @@ No hay compilación: son archivos estáticos y módulos ES. Se abren tal cual.
 | `Ctrl/⌘ ⇧ N` | Documento nuevo |
 | `Ctrl/⌘ B` | Negrita |
 | `Ctrl/⌘ I` | Cursiva |
-| `Ctrl/⌘ E` | Vista previa |
+| `Ctrl/⌘ E` | Vista previa limpia |
+| `Ctrl/⌘ D` | Formato en vivo |
 | `Ctrl/⌘ S` | Exportar |
 | `Tab` / `⇧ Tab` | Sangrar / quitar sangría |
 | `Esc` | Cerrar lo que esté abierto |
@@ -107,14 +109,19 @@ Si no defines las variables, el sitio se publica igual pero sin nube.
 - Los conflictos se resuelven por **última escritura gana**, comparando la hora
   de edición. Si editas el mismo documento en dos dispositivos a la vez, gana
   el último en guardar; no hay fusión de párrafos.
-- El lienzo es un `textarea`, es decir texto plano, así que la negrita **no se
-  ve mientras escribes**: se ven las marcas, y `⌘E` las interpreta. Mostrarlas
-  en el propio lienzo exigiría una capa de texto enriquecido encima, y como la
-  negrita cambia el ancho de cada letra, el resaltado de selección del textarea
-  dejaría de coincidir con lo que se ve. Los editores que sí lo logran no usan
-  textarea: dibujan el texto y manejan caret y selección ellos mismos.
-- Una tipografía propia que sólo traiga un peso mostrará negrita sintética en la
-  vista previa. Las tres de casa cargan sus pesos reales.
+- El formato en vivo engrosa el trazo del glifo (`-webkit-text-stroke`) en vez
+  de subir el peso. No es capricho: el lienzo sigue siendo un `textarea`, que
+  mide con el peso normal y es quien traduce un clic a una posición del texto.
+  Medido a 62px, el peso 600 ensancha una palabra entre 17 y 62px — uno o dos
+  caracteres — y el clic caería en la letra equivocada; el trazo no mueve el
+  avance ni un píxel. De paso funciona con cualquier tipografía, incluidas las
+  subidas que sólo traen un peso.
+- La cursiva sí usa la letra cursiva real, que sí cambia de ancho. La deriva
+  medida es de unos 3px: menos de un carácter, visible sólo si se hace clic al
+  final de una línea larga con cursivas.
+- Las marcas siguen ocupando su lugar, sólo atenuadas. Si se ocultaran, el texto
+  daría un salto al escribirlas y las posiciones dejarían de cuadrar con el
+  textarea.
 - La página necesita red para **cargar** la primera vez (y para cargar la
   biblioteca de Supabase). Una vez cargada, escribir funciona sin conexión,
   pero no hay Service Worker todavía, así que abrirla sin red no funciona.
@@ -132,12 +139,14 @@ config.example.js   plantilla de credenciales
 src/
   state.js          estado, localStorage, migraciones, derivados de texto
   paper.js          el shader de papel
-  editor.js         lienzo, caret espejo y la mira del cursor
+  editor.js         lienzo, caret propio y la mira del cursor
+  gloss.js          la capa de formato en vivo y la medición del caret
   textops.js        sangría y marcas de énfasis, conservando el deshacer
   markdown.js       renderizador mínimo para la vista previa
   cloud.js          Supabase: cuenta, documentos, ajustes, tipografías
   app.js            interfaz, eventos y la mezcla entre local y nube
 supabase/migrations/
   0001_cuaderno.sql     esquema, RLS, Realtime y Storage
-  0002_interletrado.sql el ajuste de interletrado
+  0002_interletrado.sql   el ajuste de interletrado
+  0003_formato_en_vivo.sql el interruptor del formato en vivo
 ```
