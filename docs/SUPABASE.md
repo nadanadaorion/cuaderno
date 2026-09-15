@@ -14,8 +14,8 @@ Guía paso a paso. No hace falta saber SQL: sólo copiar, pegar y correr.
 2. Pega completo el contenido de
    [`supabase/migrations/0001_cuaderno.sql`](../supabase/migrations/0001_cuaderno.sql).
 3. **Run.**
-4. Repite con las migraciones siguientes, en orden numérico: `0002`, `0003` y
-   `0004` de la misma carpeta. Si ya tenías la base creada antes de ellas,
+4. Repite con las migraciones siguientes, en orden numérico: `0002` y `0003`
+   de la misma carpeta. Si ya tenías la base creada antes de ellas,
    córrelas ahora: sin esas columnas, los ajustes no se sincronizan. Son
    idempotentes, así que correr una que ya estaba aplicada no hace daño.
 

@@ -20,11 +20,13 @@ export const THEMES = [
   { paper: '#000000', ink: '#D5D033', caret: '#0000EE' }
 ];
 
+import { strip, fromMarkdown, fold as foldMarks } from './marks.js';
+
 export const FONT_FORMAT = { woff2: 'woff2', woff: 'woff', ttf: 'truetype', otf: 'opentype' };
 export const FONT_MIME = { woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf' };
 
-const KEY = 'cuaderno.v1';
-const LEGACY = ['escribir.v3', 'escribir.v2', 'escribir.v1'];
+const KEY = 'cuaderno.v2';
+const LEGACY = ['cuaderno.v1', 'escribir.v3', 'escribir.v2', 'escribir.v1'];
 
 export const now = () => Date.now();
 
@@ -52,8 +54,6 @@ function defaults() {
     lead: 1,
     tracking: -0.012,
     theme: 0,
-    backdrop: 'ninguno',
-    backdropAmount: 0.5,
     gloss: true,
     fonts: [],
     settingsUpdated: 0,
@@ -77,18 +77,21 @@ export function load() {
     const old = LEGACY.map(readJson).find(Boolean);
     s = defaults();
     if (old && Array.isArray(old.docs) && old.docs.length) {
-      s.docs = old.docs;
+      // El énfasis pasa de asteriscos a marcas invisibles. Se cambia sólo el
+      // delimitador: el texto es el mismo y al exportar vuelven los asteriscos.
+      // No se toca `updated`, para que la conversión no parezca una edición y
+      // sobrescriba algo más nuevo en la nube.
+      s.docs = old.docs.map((d) => ({ ...d, text: fromMarkdown(d.text || '') }));
       s.activeId = old.activeId;
       if (typeof old.size === 'number') s.size = old.size;
       if (typeof old.lead === 'number') s.lead = old.lead;
       if (typeof old.tracking === 'number') s.tracking = old.tracking;
       if (typeof old.gloss === 'boolean') s.gloss = old.gloss;
-      if (typeof old.backdrop === 'string') s.backdrop = old.backdrop;
       if (typeof old.theme === 'number') s.theme = old.theme;
       if (typeof old.defaultFont === 'string') s.defaultFont = old.defaultFont;
       else if (typeof old.font === 'number') s.defaultFont = 'b' + old.font;
     } else if (old && typeof old.text === 'string') {
-      s.docs = [freshDoc(old.text)];
+      s.docs = [freshDoc(fromMarkdown(old.text))];
     }
   }
 
@@ -127,7 +130,7 @@ export function saveSoon() {
 // ---------------------------------------------------------------------------
 
 /** Quita las marcas de énfasis: en un título estorban más de lo que dicen. */
-const bare = (text) => text.replace(/\*{1,3}|`|~~/g, '');
+const bare = (text) => strip(text).replace(/`|~~/g, '');
 
 export function titleOf(doc) {
   if (doc.name) return doc.name;
@@ -136,7 +139,7 @@ export function titleOf(doc) {
 }
 
 export function words(text) {
-  const t = text.trim();
+  const t = strip(text).trim();
   return t ? t.split(/\s+/).length : 0;
 }
 
@@ -191,40 +194,32 @@ export function faceFor(key) {
 // Búsqueda
 // ---------------------------------------------------------------------------
 
-// Se compara sobre texto sin acentos y en minúsculas, para que "camion"
-// encuentre "camión". El índice se calcula sobre la cadena normalizada, que
-// conserva la misma longitud que el original porque sólo se quitan las marcas
-// diacríticas tras descomponer — de ahí que las posiciones sigan sirviendo
-// para seleccionar en el texto real.
-export function fold(text) {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
+// Buscar va sobre el texto sin marcas ni acentos — "camion" encuentra
+// "camión" — y el mapa devuelve cada coincidencia a su posición en el original,
+// que es la que sirve para seleccionar.
 
 /** Posiciones de cada coincidencia de `query` en `text`. */
 export function matches(text, query) {
-  const q = fold(query);
+  const q = foldMarks(query).text;
   if (!q) return [];
-  const hay = fold(text);
+  const hay = foldMarks(text);
   const out = [];
-  let i = hay.indexOf(q);
+  let i = hay.text.indexOf(q);
   while (i !== -1 && out.length < 500) {
-    out.push(i);
-    i = hay.indexOf(q, i + q.length);
+    out.push({ at: hay.map[i], end: (hay.map[i + q.length - 1] ?? hay.map[hay.map.length - 1]) + 1 });
+    i = hay.text.indexOf(q, i + q.length);
   }
   return out;
 }
 
-/** Fragmento alrededor de la primera coincidencia, para la lista de resultados. */
-export function snippet(text, query, at) {
-  const q = fold(query);
-  const from = Math.max(0, at - 28);
-  const to = Math.min(text.length, at + q.length + 44);
+/** Fragmento alrededor de una coincidencia, para la lista de resultados. */
+export function snippet(text, hit) {
+  const from = Math.max(0, hit.at - 28);
+  const to = Math.min(text.length, hit.end + 44);
+  const clean = (t) => strip(t).replace(/\s+/g, ' ');
   return {
-    before: (from > 0 ? '…' : '') + text.slice(from, at).replace(/\s+/g, ' '),
-    hit: text.slice(at, at + q.length),
-    after: text.slice(at + q.length, to).replace(/\s+/g, ' ') + (to < text.length ? '…' : '')
+    before: (from > 0 ? '…' : '') + clean(text.slice(from, hit.at)),
+    hit: strip(text.slice(hit.at, hit.end)),
+    after: clean(text.slice(hit.end, to)) + (to < text.length ? '…' : '')
   };
 }

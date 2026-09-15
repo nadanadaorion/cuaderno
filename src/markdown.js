@@ -5,6 +5,8 @@
 // tercero. El texto se escapa ANTES de construir cualquier marcado, así que un
 // documento que contenga HTML se muestra como texto, no se ejecuta.
 
+import { toMarkdown } from './marks.js';
+
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escape = (s) => s.replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
@@ -28,7 +30,9 @@ function inline(text) {
  * Reconoce títulos, citas, listas, reglas, y énfasis en línea.
  */
 export function render(source) {
-  const lines = escape(source).split('\n');
+  // La vista previa interpreta Markdown, así que las marcas invisibles del
+  // documento se traducen primero a asteriscos.
+  const lines = escape(toMarkdown(source)).split('\n');
   const out = [];
 
   let paragraph = [];

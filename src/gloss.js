@@ -4,7 +4,7 @@
 // CÓMO FUNCIONA. El textarea sigue siendo el único que recibe teclas y clics,
 // pero su texto se vuelve transparente; encima se dibuja esta capa, que
 // contiene EXACTAMENTE los mismos caracteres en el mismo orden — las marcas
-// incluidas, sólo atenuadas — con los tramos enfatizados envueltos en spans.
+// invisibles incluidas — con los tramos enfatizados envueltos en spans.
 // Que no sobre ni falte un carácter es la invariante que sostiene todo lo
 // demás: la posición del caret y los rectángulos de cada glifo se miden sobre
 // esta capa, y un desfase de un carácter se vería de inmediato.
@@ -15,6 +15,8 @@
 // letra equivocada. `-webkit-text-stroke` engrosa el glifo sin tocar su
 // avance: la desviación medida es exactamente cero. De paso funciona con
 // cualquier tipografía, incluidas las subidas que sólo traen un peso.
+
+import { BOLD, ITALIC, isMark } from './marks.js';
 
 const MARK = 'mark';
 
@@ -33,39 +35,46 @@ function runs(line) {
   const head = line.match(/^(\s*)(#{1,6})(\s+)/);
   let body = line;
   let prefix = null;
-
   if (head) {
     prefix = head[0];
     body = line.slice(prefix.length);
   }
 
-  const emphasis = /(\*\*\*)([^*\n]+?)(\*\*\*)|(\*\*)([^*\n]+?)(\*\*)|(?<![*\w])(\*)([^*\n]+?)(\*)(?![*\w])|(`)([^`\n]+?)(`)/g;
+  // Sólo se emparejan las marcas que ABREN y CIERRAN dentro de la misma línea;
+  // una suelta queda como marca inerte, que al ser de ancho cero no se ve.
+  const close = { [BOLD]: -1, [ITALIC]: -1 };
+  for (let i = body.length - 1; i >= 0; i--) {
+    const ch = body[i];
+    if (isMark(ch) && close[ch] < 0) close[ch] = i;
+  }
+  const open = { [BOLD]: -1, [ITALIC]: -1 };
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (isMark(ch) && open[ch] < 0 && close[ch] > i) open[ch] = i;
+  }
 
-  const scan = (text, base) => {
-    let at = 0;
-    let m;
-    emphasis.lastIndex = 0;
-    while ((m = emphasis.exec(text))) {
-      // Una marca pegada a un espacio no es énfasis en Markdown; se deja como
-      // texto para que la capa muestre lo mismo que exportará el archivo.
-      const inner = m[2] ?? m[5] ?? m[8] ?? m[11];
-      if (/^\s|\s$/.test(inner)) continue;
+  const inside = (i, mark) => open[mark] >= 0 && i > open[mark] && i < close[mark];
 
-      push(text.slice(at, m.index), base);
-      const open = m[1] ?? m[4] ?? m[7] ?? m[10];
-      const close = m[3] ?? m[6] ?? m[9] ?? m[12];
-      const cls = m[1] ? 'bi' : m[4] ? 'b' : m[7] ? 'i' : 'code';
+  const base = prefix ? 'h' : '';
+  let run = '';
+  let runCls = null;
 
-      push(open, MARK);
-      push(inner, base ? `${base} ${cls}` : cls);
-      push(close, MARK);
-      at = m.index + m[0].length;
+  const flush = () => { push(run, runCls); run = ''; };
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    const cls = isMark(ch)
+      ? MARK
+      : [base, inside(i, BOLD) ? 'b' : '', inside(i, ITALIC) ? 'i' : ''].filter(Boolean).join(' ');
+    if (cls !== runCls) {
+      flush();
+      runCls = cls;
     }
-    push(text.slice(at), base);
-  };
+    run += ch;
+  }
+  flush();
 
-  if (prefix) push(prefix, MARK);
-  scan(body, prefix ? 'h' : '');
+  if (prefix) out.unshift({ text: prefix, cls: MARK });
   return out;
 }
 

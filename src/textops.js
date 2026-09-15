@@ -48,6 +48,12 @@ function lineSpan(value, start, end) {
 
 const spans = (area) => [area.selectionStart, area.selectionEnd];
 
+/** Borra [from, to) conservando el historial de deshacer. */
+export function remove(area, from, to) {
+  if (to <= from) return;
+  apply(area, from, to, '', (s) => [s, s]);
+}
+
 /** Sangra las líneas de la selección, o inserta una sangría en el caret. */
 export function indent(area) {
   const [start, end] = spans(area);
@@ -92,29 +98,24 @@ export function outdent(area) {
 }
 
 /**
- * Pone o quita una marca de énfasis alrededor de la selección.
- * `mark` es '**' para negrita y '*' para cursiva.
+ * Pone o quita una marca de énfasis alrededor de la selección. `mark` es uno
+ * de los caracteres invisibles de marks.js.
  */
 export function toggleMark(area, mark) {
   const value = area.value;
   let [start, end] = spans(area);
 
-  // Markdown no reconoce una marca pegada a un espacio: "** texto **" no es
-  // negrita. Si la selección arrastra espacios, se quedan fuera.
+  // Las marcas se quedan fuera de los espacios que arrastre la selección: así
+  // el Markdown que se exporta es válido, que no admite "** texto **".
   while (start < end && /\s/.test(value[start])) start++;
   while (end > start && /\s/.test(value[end - 1])) end--;
 
-  const len = mark.length;
-  const before = value.slice(Math.max(0, start - len), start);
-  const after = value.slice(end, end + len);
+  const before = value.slice(start - 1, start);
+  const after = value.slice(end, end + 1);
 
-  // Una cursiva no debe confundirse con el borde de una negrita: si lo que
-  // rodea a la selección es '**', el '*' exterior pertenece a la negrita.
-  const isBoldEdge = mark === '*' && (value.slice(Math.max(0, start - 2), start) === '**' || value.slice(end, end + 2) === '**');
-
-  if (before === mark && after === mark && !isBoldEdge) {
+  if (before === mark && after === mark) {
     const inner = value.slice(start, end);
-    apply(area, start - len, end + len, inner, (s, t) => [s, s + t.length]);
+    apply(area, start - 1, end + 1, inner, (s, t) => [s, s + t.length]);
     return;
   }
 
@@ -122,9 +123,9 @@ export function toggleMark(area, mark) {
 
   // Sin selección, la marca se abre y el caret queda en medio para escribir.
   if (!inner) {
-    apply(area, start, end, mark + mark, (s) => [s + len, s + len]);
+    apply(area, start, end, mark + mark, (s) => [s + 1, s + 1]);
     return;
   }
 
-  apply(area, start, end, mark + inner + mark, (s, t) => [s + len, s + t.length - len]);
+  apply(area, start, end, mark + inner + mark, (s, t) => [s + 1, s + t.length - 1]);
 }

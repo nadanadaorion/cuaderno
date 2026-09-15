@@ -8,10 +8,10 @@ import {
   matches, snippet
 } from './state.js';
 
-import { indent, outdent, toggleMark } from './textops.js';
+import { indent, outdent, toggleMark, remove } from './textops.js';
+import { BOLD, ITALIC, isMark, strip, toMarkdown, fromMarkdown } from './marks.js';
 import { render } from './markdown.js';
 
-import { initBackdrop, run as runBackdrop, BACKDROPS } from './backdrop.js';
 import {
   initEditor, applyVars, grow, sync, paintGloss, dropRects, setCursor, refreshCursor, trackCursor
 } from './editor.js';
@@ -20,12 +20,11 @@ import * as cloud from './cloud.js';
 const $ = (id) => document.getElementById(id);
 const el = {};
 for (const id of [
-  'backdrop', 'sheet', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'gloss',
+  'sheet', 'bar', 'stamp', 'stampName', 'stampCount', 'stampSync', 'gloss',
   'caret', 'area', 'menu', 'faces', 'faceList', 'faceNote', 'faceStyles', 'scrim',
   'drawer', 'docs', 'toast', 'toastText', 'file', 'fontFile', 'keys',
   'accountLabel', 'accountHint', 'gate', 'gateForm', 'gateEmail', 'gateNote', 'gateCopy',
   'read', 'tracking', 'trackingValue', 'find', 'findCount', 'glossState',
-  'backdropChips', 'backdropAmount'
 ]) el[id] = $(id);
 
 let typing = false;
@@ -57,7 +56,6 @@ function paint() {
   grow();
   sync();
   stamp();
-  runBackdrop();
   if (reading) renderRead();
 }
 
@@ -266,7 +264,7 @@ function docRow(doc, hit) {
   open.style.cssText = 'border:0;background:transparent;cursor:pointer;text-align:left;padding:0;color:inherit';
   open.textContent = titleOf(doc) || 'Sin título';
   open.addEventListener('click', () => {
-    if (hit) openMatch(doc, hit.at, query.length);
+    if (hit) openMatch(doc, hit.at);
     else {
       openDoc(doc.id);
       closeDrawer();
@@ -304,14 +302,14 @@ function docRow(doc, hit) {
 
   row.append(open, meta, ren, del);
 
-  if (hit && hit.at !== null) {
-    const cut = snippet(doc.text, query, hit.at);
+  if (hit && hit.at) {
+    const cut = snippet(doc.text, hit.at);
     const line = document.createElement('div');
     line.className = 'hit';
     const mark = document.createElement('mark');
     mark.textContent = cut.hit;
     line.append(document.createTextNode(cut.before), mark, document.createTextNode(cut.after));
-    line.addEventListener('click', () => openMatch(doc, hit.at, query.length));
+    line.addEventListener('click', () => openMatch(doc, hit.at));
     row.append(line);
   }
 
@@ -511,7 +509,7 @@ function results() {
     const inBody = matches(doc.text, query);
     const inName = matches(titleOf(doc), query);
     if (!inBody.length && !inName.length) continue;
-    out.push({ doc, count: inBody.length, at: inBody.length ? inBody[0] : null });
+    out.push({ doc, count: inBody.length, at: inBody[0] || null });
   }
   return out.sort((a, b) => (b.doc.updated || 0) - (a.doc.updated || 0));
 }
@@ -522,13 +520,13 @@ function runFind(next) {
 }
 
 /** Abre el documento y deja seleccionada la coincidencia. */
-function openMatch(doc, at, length) {
+function openMatch(doc, at) {
   openDoc(doc.id);
   closeDrawer();
   if (reading) setReading(false);
   el.area.focus();
-  if (at === null) return;
-  el.area.setSelectionRange(at, at + length);
+  if (!at) return;
+  el.area.setSelectionRange(at.at, at.end);
   sync();
   el.caret.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -717,9 +715,10 @@ function copyText(text) {
 }
 
 function markdownOf(doc) {
-  const first = (doc.text.split('\n').find((l) => l.trim()) || '').trim();
+  const body = toMarkdown(doc.text);
+  const first = (body.split('\n').find((l) => l.trim()) || '').trim();
   const head = doc.name && doc.name !== first ? `# ${doc.name}\n\n` : '';
-  return head + doc.text.replace(/\n{3,}/g, '\n\n') + '\n';
+  return head + body.replace(/\n{3,}/g, '\n\n') + '\n';
 }
 
 function backup() {
@@ -749,12 +748,12 @@ function importFile(file) {
       if (!list) return toast('Ese archivo no es un respaldo del cuaderno');
       for (const d of list) {
         if (!d || typeof d.text !== 'string') continue;
-        const doc = freshDoc(d.text);
+        const doc = freshDoc(fromMarkdown(d.text));
         doc.name = typeof d.name === 'string' ? d.name : '';
         fresh.push(doc);
       }
     } else {
-      const doc = freshDoc(raw);
+      const doc = freshDoc(fromMarkdown(raw));
       doc.name = file.name.replace(/\.(txt|md)$/i, '');
       fresh.push(doc);
     }
@@ -799,27 +798,6 @@ function toggleGloss() {
   touchSettings();
 }
 
-function renderBackdrops() {
-  el.backdropChips.textContent = '';
-  for (const b of BACKDROPS) {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip';
-    chip.setAttribute('role', 'radio');
-    chip.setAttribute('aria-checked', state.backdrop === b.key ? 'true' : 'false');
-    chip.textContent = b.label;
-    chip.addEventListener('click', () => {
-      state.backdrop = b.key;
-      renderBackdrops();
-      runBackdrop();
-      touchSettings();
-    });
-    el.backdropChips.append(chip);
-  }
-  el.backdropChips.parentElement.classList.toggle('off', state.backdrop === 'ninguno');
-  el.backdropAmount.value = String(state.backdropAmount ?? 0.5);
-}
-
 function wire() {
   $('bSize').addEventListener('click', () => cycle('size', SIZES.length));
   $('bLead').addEventListener('click', () => cycle('lead', LEADING.length));
@@ -834,14 +812,6 @@ function wire() {
   $('bNew').addEventListener('click', newDoc);
   $('bBackup').addEventListener('click', backup);
   $('bGloss').addEventListener('click', toggleGloss);
-
-  // Se repinta en vivo mientras se arrastra, pero sólo se sube al soltar.
-  el.backdropAmount.addEventListener('input', () => {
-    state.backdropAmount = parseFloat(el.backdropAmount.value);
-    saveLocal();
-    runBackdrop();
-  });
-  el.backdropAmount.addEventListener('change', touchSettings);
   $('bAccount').addEventListener('click', accountAction);
   $('bImport').addEventListener('click', () => el.file.click());
   $('bAddFont').addEventListener('click', () => el.fontFile.click());
@@ -871,7 +841,7 @@ function wire() {
     if (e.key === 'Enter' && query) {
       e.preventDefault();
       const first = results()[0];
-      if (first) openMatch(first.doc, first.at, query.length);
+      if (first) openMatch(first.doc, first.at);
     }
   });
   el.gateForm.addEventListener('submit', submitGate);
@@ -893,9 +863,11 @@ function wire() {
     const b = e.target.closest('[data-out]');
     if (!b) return;
     const doc = active();
-    if (b.dataset.out === 'txt') download(`${slug(doc)}.txt`, doc.text);
+    // El .txt va sin marcas; el .md y el portapapeles, con asteriscos, que es
+    // lo que otras aplicaciones entienden.
+    if (b.dataset.out === 'txt') download(`${slug(doc)}.txt`, strip(doc.text));
     else if (b.dataset.out === 'md') download(`${slug(doc)}.md`, markdownOf(doc));
-    else copyText(doc.text);
+    else copyText(toMarkdown(doc.text));
     closeMenu();
     el.area.focus();
   });
@@ -914,6 +886,40 @@ function wire() {
   el.area.addEventListener('keydown', (e) => {
     setTyping(true);
 
+    // Una marca invisible comparte sitio en pantalla con la letra vecina, así
+    // que una pulsación gastada en saltarla parecería no hacer nada. Estas
+    // teclas la atraviesan de un paso.
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      const v = el.area.value;
+      const [a, z] = [el.area.selectionStart, el.area.selectionEnd];
+
+      if (e.key === 'ArrowRight' && a === z && isMark(v[z])) {
+        e.preventDefault();
+        let i = z;
+        while (i < v.length && isMark(v[i])) i++;
+        el.area.setSelectionRange(Math.min(v.length, i + 1), Math.min(v.length, i + 1));
+        sync();
+        return;
+      }
+      if (e.key === 'ArrowLeft' && a === z && isMark(v[a - 1])) {
+        e.preventDefault();
+        let i = a;
+        while (i > 0 && isMark(v[i - 1])) i--;
+        el.area.setSelectionRange(Math.max(0, i - 1), Math.max(0, i - 1));
+        sync();
+        return;
+      }
+      if (e.key === 'Backspace' && a === z && isMark(v[a - 1])) {
+        e.preventDefault();
+        let i = a;
+        while (i > 0 && isMark(v[i - 1])) i--;
+        // Se lleva las marcas y la letra visible de un tirón, para que no
+        // queden marcas sueltas colgando donde se borró.
+        remove(el.area, Math.max(0, i - 1), a);
+        return;
+      }
+    }
+
     if (e.key === 'Tab') {
       e.preventDefault();
       if (e.shiftKey) outdent(el.area);
@@ -925,10 +931,10 @@ function wire() {
     const k = e.key.toLowerCase();
     if (k === 'b') {
       e.preventDefault();
-      toggleMark(el.area, '**');
+      toggleMark(el.area, BOLD);
     } else if (k === 'i') {
       e.preventDefault();
-      toggleMark(el.area, '*');
+      toggleMark(el.area, ITALIC);
     }
   });
   for (const ev of ['keyup', 'click', 'select', 'focus']) {
@@ -943,7 +949,6 @@ function wire() {
   window.addEventListener('resize', () => {
     grow();
     sync();
-    runBackdrop();
   });
   window.addEventListener('beforeunload', saveLocal);
 
@@ -1011,7 +1016,6 @@ function wire() {
 
 function boot() {
   initEditor(el);
-  initBackdrop(el.backdrop);
 
   state.font = hasFace(state.defaultFont) ? state.defaultFont : hasFace(state.font) ? state.font : 'b0';
   reflectGloss();
@@ -1024,9 +1028,7 @@ function boot() {
   grow();
   sync();
   stamp();
-  runBackdrop();
   renderDocs();
-  renderBackdrops();
   renderFaces();
   reflectAccount();
   wire();
@@ -1059,12 +1061,9 @@ function boot() {
         if (typeof remote.size === 'number') state.size = remote.size;
         if (typeof remote.lead === 'number') state.lead = remote.lead;
         if (typeof remote.theme === 'number') state.theme = remote.theme;
-        if (typeof remote.backdrop === 'string') state.backdrop = remote.backdrop;
-        if (typeof remote.backdropAmount === 'number') state.backdropAmount = remote.backdropAmount;
         if (typeof remote.tracking === 'number') state.tracking = remote.tracking;
         if (typeof remote.gloss === 'boolean') state.gloss = remote.gloss;
         if (typeof remote.defaultFont === 'string') state.defaultFont = remote.defaultFont;
-        renderBackdrops();
         reflectGloss();
         showTracking();
         saveLocal();
